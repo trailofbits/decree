@@ -1,0 +1,14 @@
+workspace = { members = [ "inscribe-derive"] }
+[package]
+name = "decree"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bcs = "0.1.6"
+serde = { version = "^1.0.145", features = ["derive"] }
+merlin = "3.0.0"
+tiny-keccak = { version = "2.0.2", features = ["tuple_hash"] }
+inscribe-derive = { path = "inscribe-derive" }
