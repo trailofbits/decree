@@ -4,8 +4,9 @@ use decree::decree::Decree;
 #[test]
 fn test_invalid_labels()
 {
-    let invalid_labels: Vec<&'static str> = Vec::new();
-    match Decree::new("test", invalid_labels, vec!["challenge1"]) {
+    let invalid_labels: [&'static str; 0] = [];
+    let challenges: [&'static str; 1] = ["challenge1"];
+    match Decree::new("test", &invalid_labels, &challenges) {
         Ok(_) => { panic!("test_invalid_labels failure"); },
         Err(e) => { assert_eq!(e, "Must specify at least one input"); },
     }
@@ -14,8 +15,9 @@ fn test_invalid_labels()
 #[test]
 fn test_invalid_challenges()
 {
-    let invalid_challenges: Vec<&'static str> = Vec::new();
-    match Decree::new("test", vec!["input1"], invalid_challenges) {
+    let invalid_challenges: [&'static str; 0] = [];
+    let labels: [&'static str; 1] = ["input1"];
+    match Decree::new("test", &labels, &invalid_challenges) {
         Ok(_) => { panic!("test_invalid_challenges failure"); },
         Err(e) => { assert_eq!(e, "Must specify at least one challenge"); },
     }
@@ -26,8 +28,10 @@ fn test_invalid_challenges()
 #[test]
 fn test_add_invalid_label()
 {
+    let labels = ["input1"];
+    let challenges = ["challenge"];
     let buf: [u8; 32] = [0xffu8; 32];
-    let mut my_decree = match Decree::new("test", vec!["input1"], vec!["challenge1"]) {
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_add_invalid_label failed to create Decree"); }
     };
@@ -42,7 +46,9 @@ fn test_add_invalid_label()
 fn test_add_label_twice()
 {
     let buf: [u8; 32] = [0xffu8; 32];
-    let mut my_decree = match Decree::new("test", vec!["input1", "input2"], vec!["challenge1"]) {
+    let labels = ["input1", "input2"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_add_invalid_label failed to create Decree"); }
     };
@@ -62,7 +68,9 @@ fn test_add_label_twice()
 fn test_add_post_commit()
 {
     let buf: [u8; 32] = [0xffu8; 32];
-    let mut my_decree = match Decree::new("test", vec!["input1", "input2"], vec!["challenge1"]) {
+    let labels = ["input1", "input2"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_add_post_commit failed to create Decree"); }
     };
@@ -88,7 +96,9 @@ fn test_add_post_commit()
 fn test_challenge_unspec()
 {
     let buf: [u8; 32] = [0xffu8; 32];
-    let mut my_decree = match Decree::new("test", vec!["input1"], vec!["challenge1"]) {
+    let labels = ["input1"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_challenge_unspec failed to create Decree"); }
     };
@@ -109,7 +119,9 @@ fn test_challenge_unspec()
 fn test_challenge_order()
 {
     let buf: [u8; 32] = [0xffu8; 32];
-    let mut my_decree = match Decree::new("test", vec!["input1"], vec!["challenge1", "challenge2"]) {
+    let labels = ["input1"];
+    let challenges = ["challenge1", "challenge2"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_challenge_order failed to create Decree"); }
     };
@@ -129,7 +141,9 @@ fn test_challenge_order()
 #[test]
 fn test_challenges_empty()
 {
-    let mut my_decree = match Decree::new("test", vec!["input1"], vec!["challenge1"]) {
+    let labels = ["input1"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_challenges_empty failed to create Decree"); },
     };
@@ -156,7 +170,9 @@ fn test_challenges_empty()
 #[test]
 fn test_challenge_not_ready()
 {
-    let mut my_decree = match Decree::new("test", vec!["input1", "input2"], vec!["challenge1"]) {
+    let labels = ["input1", "input2"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
         Ok(dec) => dec,
         Err(_) => { panic!("test_challenge_not_ready failed to create Decree"); },
     };
@@ -172,5 +188,54 @@ fn test_challenge_not_ready()
     match my_decree.get_challenge("challenge1", &mut out_buffer) {
         Ok(_) => { panic!("test_challenge_not_ready failure"); },
         Err(e) => { assert_eq!(e, "Missing transcript parameters"); }
+    }
+}
+
+// Decree::extend tests
+#[test]
+fn test_extend_not_all_labels() {
+    let labels = ["input1", "input2"];
+    let challenges = ["challenge1"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
+        Ok(dec) => dec,
+        Err(_) => { panic!("test_extend_not_all_labels failed to create Decree"); },
+    };
+
+    let buf: [u8; 32] = [0xffu8; 32];
+    match my_decree.add_bytes("input1", &buf.to_vec()) {
+        Ok(_) => { },
+        Err(_) => { panic!("test_extend_not_all_labels failure"); },
+    }
+
+    match my_decree.extend(&labels, &challenges) {
+        Ok(_) => { panic!("test_extend_not_all_labels failure"); },
+        Err(e) => { assert_eq!(e, "Cannot extend Decree until all challenges generated"); }
+    }
+}
+
+#[test]
+fn test_extend_not_all_challenges() {
+    let labels = ["input1"];
+    let challenges = ["challenge1", "challenge2"];
+    let mut my_decree = match Decree::new("test", &labels, &challenges) {
+        Ok(dec) => dec,
+        Err(_) => { panic!("test_extend_not_all_challenges failed to create Decree"); },
+    };
+
+    let buf: [u8; 32] = [0xffu8; 32];
+    match my_decree.add_bytes("input1", &buf.to_vec()) {
+        Ok(_) => { },
+        Err(_) => { panic!("test_extend_not_all_challenges failure"); },
+    }
+
+    let mut out_buf: [u8; 32] = [0; 32];
+    match my_decree.get_challenge("challenge1", &mut out_buf) {
+        Err(_) => { panic!("test_extend_not_all_challenges failure"); }
+        Ok(_) => { },
+    }
+
+    match my_decree.extend(&labels, &challenges) {
+        Ok(_) => { panic!("test_extend_not_all_labels failure"); },
+        Err(e) => { assert_eq!(e, "Cannot extend Decree until all challenges generated"); }
     }
 }

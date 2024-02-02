@@ -29,20 +29,20 @@ pub struct Decree {
 impl Decree {
     pub fn new(
         name: &'static str,
-        inputs: Vec<InputLabel>,
-        challenges: Vec<ChallengeLabel>) -> Result<Decree, ErrMsg> {
+        inputs: &[InputLabel],
+        challenges: &[ChallengeLabel]) -> Result<Decree, ErrMsg> {
 
         // Make sure we have at least one input and one output
-        if inputs.is_empty() {
+        if inputs.len() == 0 {
             return Err("Must specify at least one input");
         }
-        if challenges.is_empty() {
+        if challenges.len() == 0 {
             return Err("Must specify at least one challenge");
         }
 
         // We need  to sort the input labels to ensure that we have a
         // consistent transcript.
-        let mut input_labels = inputs.clone();
+        let mut input_labels = inputs.to_vec();
         input_labels.sort();
 
         // Initialize the Merlin trascript
@@ -50,7 +50,7 @@ impl Decree {
 
         Ok(Decree{
             inputs: input_labels,
-            challenges: challenges.clone(),
+            challenges: challenges.to_vec(),
             values: HashMap::new(),
             transcript,
             committed: false
@@ -66,29 +66,29 @@ impl Decree {
     // that fits in between generating your latest challenge and adding your next input.
     pub fn extend(
             &mut self,
-            inputs: Vec<InputLabel>,
-            challenges: Vec<ChallengeLabel>) -> DecreeResult {
+            inputs: &[InputLabel],
+            challenges: &[ChallengeLabel]) -> DecreeResult {
         // If we have pending challenges, or aren't in a committed state,
         // bail.
-        if !self.challenges.is_empty() || !self.committed {
+        if self.challenges.len() != 0 || !self.committed {
             return Err("Cannot extend Decree until all challenges generated");
         }
         // Make sure we have at least one input and one output
-        if inputs.is_empty() {
+        if inputs.len() == 0 {
             return Err("Must specify at least one input");
         }
-        if challenges.is_empty() {
+        if challenges.len() == 0 {
             return Err("Must specify at least one challenge");
         }
 
         // We need  to sort the input labels to ensure that we have a
         // consistent transcript.
-        let mut input_labels = inputs.clone();
+        let mut input_labels = inputs.to_vec();
         input_labels.sort();
 
         // Set up all the new values, leaving the transcript in place
         self.inputs = input_labels;
-        self.challenges = challenges.clone();
+        self.challenges = challenges.to_vec();
         self.values = HashMap::new();
         self.committed = false;
 
