@@ -12,3 +12,4 @@ serde = { version = "^1.0.145", features = ["derive"] }
 merlin = "3.0.0"
 tiny-keccak = { version = "2.0.2", features = ["tuple_hash"] }
 inscribe-derive = { path = "inscribe-derive" }
+impls = "1.0.3"
