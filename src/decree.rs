@@ -1,40 +1,17 @@
-use std::collections::HashSet;
 use std::collections::HashMap;
-use std::hash::Hash;
 use merlin::Transcript;
 use bcs::to_bytes;
 use bcs;
 use impls::impls;
 use serde::Serialize;
-use crate::{Inscribe};
+pub use crate::{Inscribe};
 use crate::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
-use crate::error::{Error, DecreeErrType, DecreeResult};
+use crate::error::{Error, DecreeResult};
 
 pub type InputLabel = &'static str;
 pub type ChallengeLabel = &'static str;
 pub type ErrMsg = &'static str;
 pub type FSInput = Vec<u8>;
-
-// The Decree struct itself only tracks a few things:
-//  - Expected inputs
-//  - Expected challenges
-//  - Received inputs
-//  - The Merlin transcript
-//  - Commitment status
-pub struct Decree {
-    inputs: Vec<InputLabel>,
-    challenges: Vec<ChallengeLabel>,
-    values: HashMap<InputLabel, FSInput>,
-    transcript: Transcript,
-    committed: bool
-}
-
-fn vector_is_distinct(elts: &Vec<&'static str>) -> bool
-{
-    let mut uniq = HashSet::new();
-    elts.into_iter().all(move |x| uniq.insert(x))
-}
-
 
 /// A `Decree` struct is used to formalize (and enforce) Fiat-Shamir transforms. It sits atop a
 /// Merlin transcript, ensuring that required inputs are supplied before challenges are generated,
@@ -58,6 +35,24 @@ fn vector_is_distinct(elts: &Vec<&'static str>) -> bool
 /// # Ok(())
 /// # }
 /// ```
+pub struct Decree {
+    inputs: Vec<InputLabel>,
+    challenges: Vec<ChallengeLabel>,
+    values: HashMap<InputLabel, FSInput>,
+    transcript: Transcript,
+    committed: bool
+}
+
+// Checks that all elements in a Vector of status 
+fn vector_is_distinct<T>(elts: &Vec<T>) -> bool
+where
+    T: std::cmp::Eq,
+    T: std::hash::Hash
+{
+    let mut uniq = std::collections::HashSet::new();
+    elts.into_iter().all(move |x| uniq.insert(x))
+}
+
 
 impl Decree {
     /// Creates a new `Decree` struct. This will fail if one or both of the `input` or `challenge`

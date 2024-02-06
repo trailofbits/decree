@@ -46,7 +46,14 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.err_string)
+        match self.err_type {
+            DecreeErrType::InitFail => {write!(f, "Initialization failure")?; },
+            DecreeErrType::InvalidLabel => {write!(f, "Invalid label")?; },
+            DecreeErrType::InvalidChallenge => {write!(f, "Invalid challenge")?; },
+            DecreeErrType::ExtendFail => {write!(f, "Extend failure")?; },
+            DecreeErrType::General => {write!(f, "General failure")?; },
+        }
+        write!(f, ": {}", self.err_string)
     }
 }
 

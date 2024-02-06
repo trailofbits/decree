@@ -82,7 +82,7 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
         // update for the `TupleHash` struct
         let elt = match handling {
             Handling::Recurse => quote!{
-                self.#member_ident.inscribe(&mut hash_buf);
+                self.#member_ident.get_inscription(&mut hash_buf);
                 hasher.update(&hash_buf);
             },
             Handling::Serialize => quote!{
@@ -111,6 +111,7 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
                 use tiny_keccak::Hasher;
                 use bcs;
                 use serde::Serialize;
+                use decree::inscribe::InscribeBuffer;
 
                 let mut hash_buf: InscribeBuffer = [0u8; #INSCRIBE_LENGTH];
                 let mut serial_out: Vec<u8> = Vec::new();
