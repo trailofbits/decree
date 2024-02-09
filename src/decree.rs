@@ -309,46 +309,6 @@ impl Decree {
         Ok(())
     }
 
-
-    /// The `add_bytes` method associates a byte array with the given input label. This should be
-    /// used when a Fiat-Shamir input doesn't support the `Serialize` or `Inscribe` traits.
-    ///
-    /// # Panics
-    ///
-    /// If `label` is not a valid label specified in the most recent `new` or `extend` call.
-    ///
-    /// If `label` has already been used in a call to `add_bytes`, `add_serial`, or `add_inscribe`
-    ///
-    /// If all inputs already have associated inputs.
-    ///
-    /// If `label` is the last value to be processed, and an error occurs during commitment.
-    ///
-    /// # Tests
-    /// 
-    /// Test the "happy path"
-    /// 
-    /// ```
-    /// # use decree::decree::Decree;
-    /// # use decree::decree::{InputLabel, ChallengeLabel};
-    /// # use decree::error::{Error, DecreeErrType, DecreeResult};
-    /// # fn main() -> DecreeResult<()> {
-    /// let input_data = "input_data_1";
-    /// let inputs: [InputLabel; 2] = ["input1", "input2"];
-    /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
-    /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add_bytes("input1", input_data.as_bytes())?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn add_bytes(
-            &mut self,
-            label: InputLabel,
-            input: &[u8]) -> DecreeResult<()> {
-        let input_vec = input.to_vec();
-        self.add_input(label, input_vec)
-    }
-
-
     /// The `add_serial` method associates the BCS serialization of a value with the given input
     /// label. This should be used when a Fiat-Shamir input supports the `Serialize` trait, but
     // not the `Inscribe` trait.
@@ -357,7 +317,7 @@ impl Decree {
     ///
     /// If `label` is not a valid label specified in the most recent `new` or `extend` call.
     ///
-    /// If `label` has already been used in a call to `add_bytes`, `add_serial`, or `add_inscribe`
+    /// If `label` has already been used in a call to `add_serial`, or `add`
     ///
     /// If all inputs already have associated inputs.
     ///
@@ -398,7 +358,7 @@ impl Decree {
     }
 
 
-    /// The `add_inscribe` method associates the inscription of an object with the given input
+    /// The `add` method associates the inscription of an object with the given input
     /// label. This should always be used when a Fiat-Shamir input supports the `Inscribe`
     /// trait.
     ///
@@ -406,7 +366,7 @@ impl Decree {
     ///
     /// If `label` is not a valid label specified in the most recent `new` or `extend` call.
     ///
-    /// If `label` has already been used in a call to `add_bytes`, `add_serial`, or `add_inscribe`
+    /// If `label` has already been used in a call to `add_serial` or `add`
     ///
     /// If all inputs already have associated inputs.
     ///
@@ -433,18 +393,19 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add_inscribe("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn add_inscribe<T: Inscribe>(
+    pub fn add<T: Inscribe>(
             &mut self,
             label: InputLabel,
             input: T) -> DecreeResult<()> {
-        let mut buf: InscribeBuffer = [0u8; INSCRIBE_LENGTH];
-        input.get_inscription(&mut buf);
-        let inscription_vec = buf.to_vec();
-        self.add_input(label, inscription_vec)
+        //let mut buf: InscribeBuffer = [0u8; INSCRIBE_LENGTH];
+        //input.get_inscription(&mut buf);
+        //let inscription_vec = buf.to_vec();
+        let inscription = input.get_inscription()?;
+        self.add_input(label, inscription)
     }
 
 
@@ -466,8 +427,9 @@ impl Decree {
     ///
     /// If no challenges can be generated because of incomplete inputs
     /// 
-    /// # Tests
-    /// 
+    /// # Examples
+    ///
+    /// The following code should succeed
     /// ```
     /// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
     /// # use decree::error::{Error, DecreeErrType, DecreeResult};
@@ -485,7 +447,123 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add_inscribe("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// let mut challenge_out: [u8; 64] = [0u8; 64];
+    /// my_decree.get_challenge("challenge1", &mut challenge_out);
+    /// my_decree.get_challenge("challenge2", &mut challenge_out);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Tests
+    ///
+    /// The following code will not work, because the challenges are requested out of order
+    ///
+    /// ```should_panic
+    /// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+    /// # use decree::error::{Error, DecreeErrType, DecreeResult};
+    /// # use decree::Inscribe;
+    /// # use decree::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
+    /// #[derive(Inscribe)]
+    /// pub struct Point {
+    ///     #[inscribe(serialize)]
+    ///     x: i32,
+    ///     #[inscribe(serialize)]
+    ///     y: i32,
+    /// }
+    /// # fn main() -> DecreeResult<()> {
+    /// let input_data = "input_data_1";
+    /// let inputs: [InputLabel; 2] = ["input1", "input2"];
+    /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
+    /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// let mut challenge_out: [u8; 64] = [0u8; 64];
+    /// my_decree.get_challenge("challenge2", &mut challenge_out)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// The following code will not work, because the challenge is not specified
+    ///
+    /// ```should_panic
+    /// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+    /// # use decree::error::{Error, DecreeErrType, DecreeResult};
+    /// # use decree::Inscribe;
+    /// # use decree::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
+    /// #[derive(Inscribe)]
+    /// pub struct Point {
+    ///     #[inscribe(serialize)]
+    ///     x: i32,
+    ///     #[inscribe(serialize)]
+    ///     y: i32,
+    /// }
+    /// # fn main() -> DecreeResult<()> {
+    /// let input_data = "input_data_1";
+    /// let inputs: [InputLabel; 2] = ["input1", "input2"];
+    /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
+    /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// let mut challenge_out: [u8; 64] = [0u8; 64];
+    /// my_decree.get_challenge("invalid_challenge", &mut challenge_out)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// The following code will not work, because a challenge is requested AFTER all specified
+    //// challenges are generated.
+    ///
+    /// ```should_panic
+    /// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+    /// # use decree::error::{Error, DecreeErrType, DecreeResult};
+    /// # use decree::Inscribe;
+    /// # use decree::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
+    /// #[derive(Inscribe)]
+    /// pub struct Point {
+    ///     #[inscribe(serialize)]
+    ///     x: i32,
+    ///     #[inscribe(serialize)]
+    ///     y: i32,
+    /// }
+    /// # fn main() -> DecreeResult<()> {
+    /// let input_data = "input_data_1";
+    /// let inputs: [InputLabel; 2] = ["input1", "input2"];
+    /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
+    /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// let mut challenge_out: [u8; 64] = [0u8; 64];
+    /// my_decree.get_challenge("challenge1", &mut challenge_out)?;
+    /// my_decree.get_challenge("challenge2", &mut challenge_out)?;
+    /// my_decree.get_challenge("challenge_extra", &mut challenge_out)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// The following code will not work, because a challenge is requested when specified inputs
+    //// are missing.
+    ///
+    /// ```should_panic
+    /// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+    /// # use decree::error::{Error, DecreeErrType, DecreeResult};
+    /// # use decree::Inscribe;
+    /// # use decree::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
+    /// #[derive(Inscribe)]
+    /// pub struct Point {
+    ///     #[inscribe(serialize)]
+    ///     x: i32,
+    ///     #[inscribe(serialize)]
+    ///     y: i32,
+    /// }
+    /// # fn main() -> DecreeResult<()> {
+    /// let input_data = "input_data_1";
+    /// let inputs: [InputLabel; 2] = ["input1", "input2"];
+    /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
+    /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
+    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// let mut challenge_out: [u8; 64] = [0u8; 64];
+    /// my_decree.get_challenge("challenge1", &mut challenge_out)?;
     /// # Ok(())
     /// # }
     /// ```
