@@ -4,11 +4,11 @@ use syn::punctuated::Punctuated;
 use quote::quote;
 
 const INSCRIBE_LENGTH: usize = 64;
-const INSCRIBE_IDENT: &'static str = "inscribe";
-const INSCRIBE_ADDL_IDENT: &'static str = "inscribe_addl";
-const SKIP_IDENT: &'static str = "skip";
-const SERIALIZE_IDENT: &'static str = "serialize";
-const RECURSE_IDENT: &'static str = "recurse";
+const INSCRIBE_IDENT: &str = "inscribe";
+const INSCRIBE_ADDL_IDENT: &str = "inscribe_addl";
+const SKIP_IDENT: &str = "skip";
+const SERIALIZE_IDENT: &str = "serialize";
+const RECURSE_IDENT: &str = "recurse";
 
 // The three derive options for each struct member: inscribe it, serialize it, or skip it.
 enum Handling {

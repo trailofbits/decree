@@ -103,7 +103,8 @@ pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 /// }
 /// impl Proof {
 ///     fn addl_context(&self) -> Result<Vec<u8>, Error> {
-///         Ok(Vec::<u8>::new())
+///         let j = "xyproof".as_bytes();
+///         Ok(j.to_vec())
 ///     }
 /// }
 /// ```

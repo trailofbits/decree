@@ -42,13 +42,13 @@ pub struct Decree {
 }
 
 // Checks that all elements in a Vector of status 
-fn vector_is_distinct<T>(elts: &Vec<T>) -> bool
+fn vector_is_distinct<T>(elts: &[T]) -> bool
 where
     T: std::cmp::Eq,
     T: std::hash::Hash
 {
     let mut uniq = std::collections::HashSet::new();
-    elts.into_iter().all(move |x| uniq.insert(x))
+    elts.iter().all(move |x| uniq.insert(x))
 }
 
 
@@ -134,10 +134,10 @@ impl Decree {
         challenges: &[ChallengeLabel]) -> DecreeResult<Decree> {
 
         // Make sure we have at least one input and one output
-        if inputs.len() == 0 {
+        if inputs.is_empty() {
             return Err(Error::new_init_fail("Must specify at least one input"));
         }
-        if challenges.len() == 0 {
+        if challenges.is_empty() {
             return Err(Error::new_init_fail("Must specify at least one challenge"));
         }
 
@@ -205,14 +205,14 @@ impl Decree {
             challenges: &[ChallengeLabel]) -> DecreeResult<()> {
         // If we have pending challenges, or aren't in a committed state,
         // bail.
-        if self.challenges.len() != 0 || !self.committed {
+        if !self.challenges.is_empty() || !self.committed {
             return Err(Error::new_extend_fail("Cannot extend Decree until all challenges generated"));
         }
         // Make sure we have at least one input and one output
-        if inputs.len() == 0 {
+        if inputs.is_empty() {
             return Err(Error::new_extend_fail("Must specify at least one input"));
         }
-        if challenges.len() == 0 {
+        if challenges.is_empty() {
             return Err(Error::new_extend_fail("Must specify at least one challenge"));
         }
 
