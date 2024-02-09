@@ -1,6 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{AttrStyle, Data, DataStruct, DeriveInput, Field, Fields, Meta, MetaNameValue,
-    Token};
+use syn::{AttrStyle, Data, DataStruct, DeriveInput, Field, Fields, Meta, Token};
 use syn::punctuated::Punctuated;
 use quote::quote;
 
@@ -10,7 +9,6 @@ const INSCRIBE_ADDL_IDENT: &'static str = "inscribe_addl";
 const SKIP_IDENT: &'static str = "skip";
 const SERIALIZE_IDENT: &'static str = "serialize";
 const RECURSE_IDENT: &'static str = "recurse";
-const ADDL_IDENT: &'static str = "additional";
 
 // The three derive options for each struct member: inscribe it, serialize it, or skip it.
 enum Handling {

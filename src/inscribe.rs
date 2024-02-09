@@ -1,12 +1,8 @@
 use crate::decree::FSInput;
-use crate::error::{DecreeResult, Error};
-use crate::error;
-use serde::Serialize;
+use crate::error::DecreeResult;
 pub const INSCRIBE_LENGTH: usize = 64;
 pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 
-const INSCRIBE_MARK_U8_SLICE: &'static str = "user_serialized";
-const INSCRIBE_MARK_SERIALIZE: &'static str = "serde_bcs_serialized";
 
 /// The `Inscribe` trait is a derivable trait for structs that makes it easy to incorporate
 /// contextual data into Fiat-Shamir transcripts. There are two main methods that the trait

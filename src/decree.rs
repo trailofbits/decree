@@ -2,10 +2,8 @@ use std::collections::HashMap;
 use merlin::Transcript;
 use bcs::to_bytes;
 use bcs;
-use impls::impls;
 use serde::Serialize;
 pub use crate::{Inscribe};
-use crate::inscribe::{INSCRIBE_LENGTH, InscribeBuffer};
 use crate::error::{Error, DecreeResult};
 
 pub type InputLabel = &'static str;
