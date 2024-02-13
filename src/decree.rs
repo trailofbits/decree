@@ -17,8 +17,7 @@ pub type FSInput = Vec<u8>;
 ///
 /// # Examples
 /// ```
-/// # use decree::decree::Decree;
-/// # use decree::decree::{InputLabel, ChallengeLabel};
+/// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
 /// # use decree::error::{Error, DecreeErrType, DecreeResult};
 /// # fn main() -> DecreeResult<()> {
 /// let inputs: [InputLabel; 2] = ["input1", "input2"];
@@ -33,6 +32,107 @@ pub type FSInput = Vec<u8>;
 /// # Ok(())
 /// # }
 /// ```
+///
+/// Schnorr proof:
+/// ```
+/// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+/// # use decree::error::{Error, DecreeErrType, DecreeResult};
+/// # use num_bigint::{BigInt, RandBigInt, Sign};
+/// # use num_traits::Signed;
+/// # use std::str::FromStr;
+/// # fn main() -> DecreeResult<()> {
+///     let inputs: [InputLabel; 4] = ["modulus", "base", "target", "u"];
+///     let challenges: [ChallengeLabel; 1] = ["c_challenge"];
+///     let mut transcript = Decree::new("schnorr proof", &inputs, &challenges)?;
+///
+///     // Proof parameters
+///     let target = BigInt::from(8675309u32);
+///     let base = BigInt::from(43u32);
+///     let log = BigInt::from_str("18777797083714995725967614997933308615").unwrap();
+///     let modulus = &BigInt::from(2u32).pow(127) - BigInt::from(1u32);
+///
+///     // Random exponent
+///     let mut rng = rand::thread_rng();
+///     let randomizer_exp = rng.gen_bigint(128).abs();
+///     let randomizer = base.modpow(&randomizer_exp, &modulus);
+///
+///     // Add everything to the transcript-- note that order doesn't matter!
+///     transcript.add_serial("modulus", &modulus);
+///     transcript.add_serial("base", &base);
+///     transcript.add_serial("target", &target);
+///     transcript.add_serial("u", &randomizer);
+///
+///     // Generate challenge
+///     let mut challenge_buffer: [u8; 16] = [0u8; 16];
+///     transcript.get_challenge("c_challenge", &mut challenge_buffer)?;
+///     let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_buffer);
+///
+///     // Final proof value
+///     let z = (challenge_int * log) + randomizer;
+/// #   Ok(())
+/// # }
+/// ```
+///
+/// Schnorr proof with `Inscribe` support:
+/// ```
+/// # use decree::decree::{Decree, InputLabel, ChallengeLabel};
+/// # use decree::error::{Error, DecreeErrType, DecreeResult};
+/// # use num_bigint::{BigInt, RandBigInt, Sign};
+/// # use num_traits::Signed;
+/// # use decree::Inscribe;
+/// # use std::str::FromStr;
+/// # use serde::Serialize;
+///  #[derive(Inscribe, Clone)]
+///  #[inscribe_addl(get_extra)]
+///  pub struct BigIntTarget {
+///     #[inscribe(serialize)]
+///     target: BigInt,
+///     #[inscribe(serialize)]
+///     base: BigInt,
+///     #[inscribe(serialize)]
+///     modulus: BigInt,
+///  }
+///
+///  impl BigIntTarget {
+///     fn get_extra(&self) -> Result<Vec<u8>, Error> {
+///         Ok("schnorr proof value".as_bytes().to_vec())
+///     }
+///  }
+///
+/// # fn main() -> DecreeResult<()> {
+///     let inputs: [InputLabel; 4] = ["modulus", "base", "target", "u"];
+///     let challenges: [ChallengeLabel; 1] = ["c_challenge"];
+///     let mut transcript = Decree::new("schnorr proof", &inputs, &challenges)?;
+///
+///     // Proof parameters
+///     let modulus = &BigInt::from(2u32).pow(127) - BigInt::from(1u32);
+///     let base = BigInt::from(43u32);
+///     let target = BigIntTarget{
+///         target: BigInt::from(8675309u32),
+///         base: base.clone(),
+///         modulus: modulus.clone()};
+///     let log = BigInt::from_str("18777797083714995725967614997933308615").unwrap();
+///
+///     // Random exponent
+///     let mut rng = rand::thread_rng();
+///     let randomizer_exp = rng.gen_bigint(128).abs();
+///     let randomizer_int = base.modpow(&randomizer_exp, &modulus);
+///
+///     // Add everything to the transcript-- note that order doesn't matter!
+///     transcript.add_serial("modulus", &modulus);
+///     transcript.add_serial("base", &base);
+///     transcript.add_serial("u", &randomizer_int);
+///     transcript.add("target", target);
+///
+///     // Generate challenge
+///     let mut challenge_buffer: [u8; 16] = [0u8; 16];
+///     transcript.get_challenge("c_challenge", &mut challenge_buffer)?;
+///     let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_buffer);
+///
+///     // Final proof value
+///     let z = (challenge_int * log) + randomizer_int.clone();
+/// #   Ok(())
+/// # }
 pub struct Decree {
     inputs: Vec<InputLabel>,
     challenges: Vec<ChallengeLabel>,
