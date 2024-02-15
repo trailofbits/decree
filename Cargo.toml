@@ -12,8 +12,8 @@ serde = { version = "^1.0.145", features = ["derive"] }
 merlin = "3.0.0"
 tiny-keccak = { version = "2.0.2", features = ["tuple_hash"] }
 inscribe-derive = { path = "inscribe-derive" }
+
+[dev-dependencies]
 num-bigint = { version="0.4.4", features = ["rand", "serde"] }
 num-traits = { version="0.2.15" }
 rand = "0.8.5"
-
-[test-dependencies]

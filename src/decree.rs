@@ -122,7 +122,7 @@ pub type FSInput = Vec<u8>;
 ///     transcript.add_serial("modulus", &modulus);
 ///     transcript.add_serial("base", &base);
 ///     transcript.add_serial("u", &randomizer_int);
-///     transcript.add("target", target);
+///     transcript.add("target", &target);
 ///
 ///     // Generate challenge
 ///     let mut challenge_buffer: [u8; 16] = [0u8; 16];
@@ -130,7 +130,7 @@ pub type FSInput = Vec<u8>;
 ///     let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_buffer);
 ///
 ///     // Final proof value
-///     let z = (challenge_int * log) + randomizer_int.clone();
+///     let z = (challenge_int * log) + randomizer_int;
 /// #   Ok(())
 /// # }
 pub struct Decree {
@@ -491,14 +491,14 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
     /// # Ok(())
     /// # }
     /// ```
     pub fn add<T: Inscribe>(
             &mut self,
             label: InputLabel,
-            input: T) -> DecreeResult<()> {
+            input: &T) -> DecreeResult<()> {
         //let mut buf: InscribeBuffer = [0u8; INSCRIBE_LENGTH];
         //input.get_inscription(&mut buf);
         //let inscription_vec = buf.to_vec();
@@ -545,7 +545,7 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
     /// let mut challenge_out: [u8; 64] = [0u8; 64];
     /// my_decree.get_challenge("challenge1", &mut challenge_out);
     /// my_decree.get_challenge("challenge2", &mut challenge_out);
@@ -574,8 +574,8 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
-    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", &Point{ x: 1i32, y: 2i32 })?;
     /// let mut challenge_out: [u8; 64] = [0u8; 64];
     /// my_decree.get_challenge("challenge2", &mut challenge_out)?;
     /// # Ok(())
@@ -601,8 +601,8 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
-    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", &Point{ x: 1i32, y: 2i32 })?;
     /// let mut challenge_out: [u8; 64] = [0u8; 64];
     /// my_decree.get_challenge("invalid_challenge", &mut challenge_out)?;
     /// # Ok(())
@@ -629,8 +629,8 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
-    /// my_decree.add("input2", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input2", &Point{ x: 1i32, y: 2i32 })?;
     /// let mut challenge_out: [u8; 64] = [0u8; 64];
     /// my_decree.get_challenge("challenge1", &mut challenge_out)?;
     /// my_decree.get_challenge("challenge2", &mut challenge_out)?;
@@ -659,7 +659,7 @@ impl Decree {
     /// let inputs: [InputLabel; 2] = ["input1", "input2"];
     /// let challenges: [ChallengeLabel; 2] = ["challenge1", "challenge2"];
     /// let mut my_decree = Decree::new("testname", &inputs, &challenges)?;
-    /// my_decree.add("input1", Point{ x: 1i32, y: 2i32 })?;
+    /// my_decree.add("input1", &Point{ x: 1i32, y: 2i32 })?;
     /// let mut challenge_out: [u8; 64] = [0u8; 64];
     /// my_decree.get_challenge("challenge1", &mut challenge_out)?;
     /// # Ok(())

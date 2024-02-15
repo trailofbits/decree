@@ -23,7 +23,7 @@ same data type with the same value, then regardless of the platform or operating
 serialized result will be the same.
 
 Structs that use `#[derive(Inscribe)]` can specify `#[inscribe_addl(<function>)]`, where
-`function` can return any wontextual information not included in the struct, whether explicitly
+`function` can return any contextual information not included in the struct, whether explicitly
 or implicitly via `Inscribe` members. This is where implementers can include things like domain
 parameters, protocol versions (if such information is important), related values, etc.
 
@@ -64,7 +64,7 @@ Decree transcripts ensure that:
     - Critical transcript inputs aren't skipped
     - Transcript inputs are not multiply-specified
     - Changes to the order of inputs don't result in incompatibility problems
-    - Challenges are generated according
+    - Challenges are generated in a specified order
 
 
 ### Supported types
@@ -77,14 +77,14 @@ supported, this is the preferred method for adding data to a Decree transcript, 
 implement `Inscribe` are less likely to have colliding transcript inputs across multiple
 parameterizations.
 
-The `add_serialize` method can be used for any input that supports the `Serialize` trait. This
+The `add_serial` method can be used for any input that supports the `Serialize` trait. This
 method uses the `bcs` (binary canonical serialization) library to serialize the input to a unique,
 platform-independent binary representation, which is then used as the direct input to the Merlin
 transcript. This ensures that serialized values don't change from platform to platform, as long
 as the data structures remain the same.
 
 Because `Serialize` is implemented for `&[u8]`, it is possible to serialize values "by hand" and
-feed the resulting slice to the `add_serialize` method. It is worth noting, however, that the
+feed the resulting slice to the `add_serial` method. It is worth noting, however, that the
 `bcs` library is still used to serialize the `&[u8]` input, so the result will not be the same
 as directly feeding the slice into the underlying Merlin transcript.
 
@@ -93,7 +93,7 @@ as directly feeding the slice into the underlying Merlin transcript.
 Consider the following example from the doctests, a Schnorr proof that Alice knows the base-`43`
 discrete logarithm of `8675309` modulo a shared modulus of `0x1fffffffffffffff` (2^127 - 1).
 
-```
+```rs
     let inputs: [InputLabel; 4] = ["modulus", "base", "target", "u"];
     let challenges: [ChallengeLabel; 1] = ["c_challenge"];
     let mut transcript = Decree::new("schnorr proof", &inputs, &challenges)?;
@@ -124,7 +124,8 @@ Now consider the idea of a Schnorr proof, but with `Inscribe` implemented as a
 We could extend this by adding an `Inscribe` implementation for the `target` and `base` values to
 indicate the associated modulus:
 
-```
+```rs
+#[derive(Inscribe)]
 pub struct BigIntTarget {
    #[inscribe(serialize)]
    target: BigInt,
