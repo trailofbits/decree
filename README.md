@@ -119,8 +119,6 @@ discrete logarithm of `8675309` modulo a shared modulus of `0x1fffffffffffffff` 
 (Note: this code should not be _used_ for a variety of reasons; it is for illustrative purposes
 only.)
 
-Now consider the idea of a Schnorr proof, but with `Inscribe` implemented as a
-
 We could extend this by adding an `Inscribe` implementation for the `target` and `base` values to
 indicate the associated modulus:
 

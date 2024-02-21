@@ -8,13 +8,21 @@ mod tests {
     use tiny_keccak::Hasher;
     const INSCRIBE_LENGTH: usize = 64;
     const ADDL_TEST_DATA: &str = "Additional data!";
+    const MARK_TEST_DATA: &str = "Atypical mark!";
 
     #[derive(Inscribe)]
+    #[inscribe_mark(atypical_mark)]
     struct Point {
         #[inscribe(serialize)]
         x: i32,
         #[inscribe(serialize)]
         y: i32,
+    }
+
+    impl Point {
+        fn atypical_mark(&self) -> &'static str {
+            MARK_TEST_DATA
+        }
     }
 
     #[derive(Inscribe)]
@@ -43,7 +51,7 @@ mod tests {
 
         // Compute the inscription piece-by-piece
         // Get the inscription of the `a` member
-        let mut tuplehasher_a = TupleHash::v256("Point".as_bytes());
+        let mut tuplehasher_a = TupleHash::v256(MARK_TEST_DATA.as_bytes());
         let a_x = bcs::to_bytes(&inscriber.a.x).unwrap();
         let a_y = bcs::to_bytes(&inscriber.a.y).unwrap();
         let a_addl: Vec<u8> = vec![];
@@ -54,7 +62,7 @@ mod tests {
         tuplehasher_a.finalize(&mut buffer_a);
 
         // Get the inscription of the `b` member
-        let mut tuplehasher_b = TupleHash::v256("Point".as_bytes());
+        let mut tuplehasher_b = TupleHash::v256(MARK_TEST_DATA.as_bytes());
         let b_x = bcs::to_bytes(&inscriber.b.x).unwrap();
         let b_y = bcs::to_bytes(&inscriber.b.y).unwrap();
         let b_addl: Vec<u8> = vec![];

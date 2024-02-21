@@ -6,6 +6,7 @@ use quote::quote;
 const INSCRIBE_LENGTH: usize = 64;
 const INSCRIBE_IDENT: &str = "inscribe";
 const INSCRIBE_ADDL_IDENT: &str = "inscribe_addl";
+const INSCRIBE_MARK_IDENT: &str = "inscribe_mark";
 const SKIP_IDENT: &str = "skip";
 const SERIALIZE_IDENT: &str = "serialize";
 const RECURSE_IDENT: &str = "recurse";
@@ -139,9 +140,9 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
 }
 
 
-fn implement_get_mark(ast: DeriveInput) -> TokenStream {
+fn implement_default_mark(ast: &DeriveInput) -> TokenStream {
     // By default, the mark/identifier for a struct will be its name
-    let ident = ast.ident;
+    let ident = &ast.ident;
     let ident_str = ident.to_string();
 
     let get_mark = quote!{
@@ -154,9 +155,9 @@ fn implement_get_mark(ast: DeriveInput) -> TokenStream {
 
 
 fn implement_inscribe_trait(ast: DeriveInput, dstruct: &DataStruct) -> TokenStream {
-    let get_mark: TokenStream = implement_get_mark(ast.clone());
+    let get_mark: TokenStream = implement_get_mark(&ast);
     let get_inscr: TokenStream = implement_get_inscription(dstruct);
-    let get_addl: TokenStream = implement_get_addl(ast.clone());
+    let get_addl: TokenStream = implement_get_addl(&ast);
 
     let ident = ast.ident;
     let generics = ast.generics;
@@ -173,12 +174,12 @@ fn implement_inscribe_trait(ast: DeriveInput, dstruct: &DataStruct) -> TokenStre
     }
 }
 
-fn implement_get_addl(ast: DeriveInput) -> TokenStream {
+fn implement_get_addl(ast: &DeriveInput) -> TokenStream {
     // In the absence of an outer attribute, we use the default implementation
     let mut addl_implementation: TokenStream = quote!{};
 
-    // Check the outer attributes for something like `#[inscribe(additional = addl_function)]`
-    for attr in ast.attrs {
+    // Check the outer attributes for something like `#[inscribe_addl(addl_function)]`
+    for attr in &ast.attrs {
         // We only look for "inscribe" attributes
         if !attr.path().is_ident(INSCRIBE_ADDL_IDENT) { continue; }
 
@@ -199,11 +200,49 @@ fn implement_get_addl(ast: DeriveInput) -> TokenStream {
                 _ => { panic!("Invalid metadata for field attribute"); },
             }
         }
+
+        break;
     }
     addl_implementation
 }
 
-#[proc_macro_derive(Inscribe, attributes(inscribe, inscribe_addl))]
+fn implement_get_mark(ast: &DeriveInput) -> TokenStream {
+    let mut found_mark: bool = false;
+    let mut mark_implementation: TokenStream = quote!{};
+
+    // Check the outer attributes for something like `#[inscribe_mark(mark_function)]`
+    for attr in &ast.attrs {
+        // We only look for "inscribe" attributes
+        if !attr.path().is_ident(INSCRIBE_MARK_IDENT) { continue; }
+
+        let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
+            Ok(parse_result) => {
+                parse_result
+            },
+            Err(_) => { panic!("Failed to parse inscribe_mark field attribute"); }
+        };
+
+        if let Some(meta) = nested.iter().next() {
+            match meta {
+                Meta::Path(path) => { mark_implementation = quote!{
+                    fn get_mark(&self) -> &'static str {
+                        self.#path()
+                    }
+                 }},
+                _ => { panic!("Invalid metadata for field attribute"); },
+            }
+        }
+        found_mark = true;
+        break;
+    }
+    if found_mark {
+        mark_implementation
+    } else {
+        implement_default_mark(ast)
+    }
+}
+
+#[proc_macro_derive(Inscribe, attributes(inscribe, inscribe_addl, inscribe_mark))]
 pub fn inscribe_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: DeriveInput = syn::parse(item.clone()).unwrap();
 
