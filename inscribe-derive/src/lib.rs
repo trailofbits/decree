@@ -1,12 +1,14 @@
 use proc_macro2::TokenStream;
-use syn::{AttrStyle, Data, DataStruct, DeriveInput, Field, Fields, Meta, Token};
+use syn::{Attribute, AttrStyle, Data, DataStruct, DeriveInput, Field, Fields, Ident, Meta, Token};
 use syn::punctuated::Punctuated;
 use quote::quote;
+use std::collections::HashMap;
 
 const INSCRIBE_LENGTH: usize = 64;
-const INSCRIBE_IDENT: &str = "inscribe";
+const INSCRIBE_HANDLING_IDENT: &str = "inscribe";
 const INSCRIBE_ADDL_IDENT: &str = "inscribe_addl";
 const INSCRIBE_MARK_IDENT: &str = "inscribe_mark";
+const INSCRIBE_NAME_IDENT: &str = "inscribe_name";
 const SKIP_IDENT: &str = "skip";
 const SERIALIZE_IDENT: &str = "serialize";
 const RECURSE_IDENT: &str = "recurse";
@@ -18,51 +20,96 @@ enum Handling {
     Skip
 }
 
-// Determines the handling of the current struct member, based on the associated attributes. The
-// three possible outcomes are defined in the `Handling` enum:
-//  - `Recurse`: Recursively inscribe the member by calling `get_inscription` on it (default)
-//  - `Serialize`: Use `bcs` to serialize the member (given by `inscribe(serialize)`)
-//  - `Skip`: Don't include the member in the inscription at all (given by `inscribe(skip)`)
-fn get_field_handling(field: &Field) -> Handling {
-    for attr in &field.clone().attrs {
+struct MemberInfo {
+    handling:   Handling,
+    name_ident: Ident,
+    sort_ident: Ident,
+}
+
+fn parse_contained_ident(attr: &Attribute) -> Option<Ident> {
+    // Get the nested attribute data
+    let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
+        Ok(parse_result) => parse_result,
+        Err(_) => { return None; },
+    };
+
+    // This was originally a for loop, but clippy noted that it never actually loops, so it
+    // has been replaced with an if-let construction. This may be something to watch if the
+    // metadata API changes.
+    if let Some(meta) = nested.iter().next() {
+        match meta {
+            Meta::Path(path) => { return Some(path.get_ident().unwrap().clone()); },
+            _ => { },
+        }
+    };
+
+    None
+}
+
+fn get_member_info(field: &Field) -> MemberInfo {
+    // By default: handling is recursive, and the name is the field name
+    let mut member_handling = Handling::Recurse;
+    let mut found_handling: bool = false;
+    let mut found_name: bool = false;
+    let mut sort_name = match field.ident.clone() {
+        Some(k) => k,
+        None => { panic!("Couldn't get field name"); }
+    };
+
+    // Run over all the attributes
+    for attr in field.clone().attrs {
         // Skip inner attributes
         if let AttrStyle::Inner(_) = attr.style { continue; }
 
-        // Skip any attributes that aren't "inscribe" attributes
-        if !attr.path().is_ident(INSCRIBE_IDENT) { continue; }
+        // Don't process attributes we don't care about
+        if  !attr.path().is_ident(INSCRIBE_HANDLING_IDENT) &&
+            !attr.path().is_ident(INSCRIBE_NAME_IDENT) {
+                continue;
+        }
 
-        // Get the nested attribute data
-        let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
-            Ok(parse_result) => {
-                parse_result
-            },
-            Err(_) => { panic!("Failed to parse inscribe field attribute"); }
+        // Parse out whatever is inside the attribute
+        let inside = match parse_contained_ident(&attr) {
+            Some(ident) => ident,
+            None => { panic!("Failed to parse member attribute for Inscribe trait"); }
         };
 
-        // This was originally a for loop, but clippy noted that it never actually loops, so it
-        // has been replaced with an if-let construction. This may be something to watch if the
-        // metadata API changes.
-        if let Some(meta) = nested.iter().next() {
-            match meta {
-                Meta::Path(path) => {
-                    if path.is_ident(SKIP_IDENT) {
-                        return Handling::Skip;
-                    }
-                    else if path.is_ident(SERIALIZE_IDENT) {
-                        return Handling::Serialize;
-                    }
-                    else if path.is_ident(RECURSE_IDENT) {
-                        return Handling::Recurse;
-                    }
-                    panic!("Invalid field attribute");
-                },
-                _ => { panic!("Invalid metadata for field attribute"); },
+        // Get handling specifications
+        if attr.path().is_ident(INSCRIBE_HANDLING_IDENT) {
+            // Don't process the same handling twice
+            if found_handling {
+                panic!("Inscribe handling attribute defined more than once");
             }
+
+            if inside.to_string() == String::from(SKIP_IDENT) {
+                member_handling = Handling::Skip;
+            } else if inside.to_string() == String::from(SERIALIZE_IDENT) {
+                member_handling = Handling::Serialize;
+            } else if inside.to_string() == String::from(RECURSE_IDENT) {
+                member_handling = Handling::Recurse;
+            } else {
+                panic!("Invalid handling specification");
+            }
+            found_handling = true;
+            continue;
+        }
+
+        // Get sorting name
+        if attr.path().is_ident(INSCRIBE_NAME_IDENT) {
+            // Don't process the name twice
+            if found_name {
+                panic!("Inscribe name attribute defined more than once");
+            }
+            sort_name = inside.clone();
+            found_name = true;
+            continue;
         }
     }
 
-    // By default, assume that we will recurse on the `Inscribe` trait.
-    Handling::Recurse
+    MemberInfo {
+        name_ident: field.ident.clone().unwrap(),
+        sort_ident: sort_name,
+        handling: member_handling
+    }
 }
 
 fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
@@ -71,24 +118,29 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
         _ => { panic!("Invalid struct type"); }
     };
 
-    // Each field in the struct will be either skipped or included in a `TupleHash` computation
-    // that higher-level code will integrate into the Merlin transcript as representative of the
-    // value.
-    // For each element that gets included, there are two possibilities:
-    //      (1) The field's own `get_inscription` method is called, and the result is included in
-    //          the `TupleHash` computation (this is the default assumption)
-    //      (2) The `bcs` serialization gets included in the `TupleHash`
-    let mut center = quote!{};
-    for field in members.named.iter() {
-        let handling = get_field_handling(field);
-        let member_ident = match field.ident.clone() {
-            Some(k) => k,
-            None => { panic!("Couldn't get field name"); }
-        };
+    // Build hash table to match each of the struct member names to an associated MemberInfo
+    // struct
+    let mut member_table: HashMap<String, MemberInfo> = HashMap::new();
+    let mut member_vec: Vec<String> = Vec::new();
 
-        // Based on each handling flag, generate a token string to compute the appropriate
-        // update for the `TupleHash` struct
-        let elt = match handling {
+
+    for field in members.named.iter() {
+        let member_info = get_member_info(&field);
+        let sort_name_str = member_info.sort_ident.to_string();
+
+        member_table.insert(sort_name_str.clone(), member_info);
+        member_vec.push(sort_name_str);
+    }
+
+    // Now run through the elements in sorted order
+    let mut center = quote!{};
+    member_vec.sort();
+
+    for sort_name in member_vec.iter() {
+        let current_member = member_table.get(sort_name).unwrap(); // Guaranteed to work
+        let member_ident = current_member.name_ident.clone();
+
+        let elt = match current_member.handling {
             Handling::Recurse => quote!{
                 let sub_inscription = self.#member_ident.get_inscription()?;
                 hasher.update(sub_inscription.as_slice());
@@ -114,31 +166,30 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
     // of a routine that sets up the various temporary values and performs the final hash
     // computation.
     quote! {
-            fn get_inscription(&self) -> Result<Vec<u8>, decree::error::Error> {
-                use tiny_keccak::TupleHash;
-                use tiny_keccak::Hasher;
-                use bcs;
-                use serde::Serialize;
-                use decree::inscribe::InscribeBuffer;
-                use decree::decree::FSInput;
+        fn get_inscription(&self) -> Result<Vec<u8>, decree::error::Error> {
+            use tiny_keccak::TupleHash;
+            use tiny_keccak::Hasher;
+            use bcs;
+            use serde::Serialize;
+            use decree::inscribe::InscribeBuffer;
+            use decree::decree::FSInput;
 
-                let mut serial_out: Vec<u8> = Vec::new();
-                let mut hasher = TupleHash::v256(self.get_mark().as_bytes());
+            let mut serial_out: Vec<u8> = Vec::new();
+            let mut hasher = TupleHash::v256(self.get_mark().as_bytes());
 
-                // Add the struct members into the TupleHash
-                #center
+            // Add the struct members into the TupleHash
+            #center
 
-                // Add the final additional data
-                let additional = self.get_additional()?;
-                hasher.update(additional.as_slice());
+            // Add the final additional data
+            let additional = self.get_additional()?;
+            hasher.update(additional.as_slice());
 
-                let mut hash_buf: InscribeBuffer = [0u8; #INSCRIBE_LENGTH];
-                hasher.finalize(&mut hash_buf);
-                Ok(hash_buf.to_vec())
-            }
+            let mut hash_buf: InscribeBuffer = [0u8; #INSCRIBE_LENGTH];
+            hasher.finalize(&mut hash_buf);
+            Ok(hash_buf.to_vec())
+        }
     }
 }
-
 
 fn implement_default_mark(ast: &DeriveInput) -> TokenStream {
     // By default, the mark/identifier for a struct will be its name
@@ -151,27 +202,6 @@ fn implement_default_mark(ast: &DeriveInput) -> TokenStream {
             }
         };
     get_mark
-}
-
-
-fn implement_inscribe_trait(ast: DeriveInput, dstruct: &DataStruct) -> TokenStream {
-    let get_mark: TokenStream = implement_get_mark(&ast);
-    let get_inscr: TokenStream = implement_get_inscription(dstruct);
-    let get_addl: TokenStream = implement_get_addl(&ast);
-
-    let ident = ast.ident;
-    let generics = ast.generics;
-
-    quote! {
-        impl #generics Inscribe for #ident #generics {
-
-            #get_mark
-
-            #get_inscr
-
-            #get_addl
-        }
-    }
 }
 
 fn implement_get_addl(ast: &DeriveInput) -> TokenStream {
@@ -242,7 +272,28 @@ fn implement_get_mark(ast: &DeriveInput) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(Inscribe, attributes(inscribe, inscribe_addl, inscribe_mark))]
+fn implement_inscribe_trait(ast: DeriveInput, dstruct: &DataStruct) -> TokenStream {
+    let get_mark: TokenStream = implement_get_mark(&ast);
+    let get_inscr: TokenStream = implement_get_inscription(dstruct);
+    let get_addl: TokenStream = implement_get_addl(&ast);
+
+    let ident = ast.ident;
+    let generics = ast.generics;
+
+    quote! {
+        impl #generics Inscribe for #ident #generics {
+
+            #get_mark
+
+            #get_inscr
+
+            #get_addl
+        }
+    }
+}
+
+
+#[proc_macro_derive(Inscribe, attributes(inscribe, inscribe_addl, inscribe_mark, inscribe_name))]
 pub fn inscribe_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: DeriveInput = syn::parse(item.clone()).unwrap();
 

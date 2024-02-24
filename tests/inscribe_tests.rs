@@ -14,8 +14,10 @@ mod tests {
     #[inscribe_mark(atypical_mark)]
     struct Point {
         #[inscribe(serialize)]
+        #[inscribe_name(input_2)]
         x: i32,
         #[inscribe(serialize)]
+        #[inscribe_name(input_1)]
         y: i32,
     }
 
@@ -51,23 +53,25 @@ mod tests {
 
         // Compute the inscription piece-by-piece
         // Get the inscription of the `a` member
+        // (Note that `x` and `y` are out of order according to `inscribe_name`)
         let mut tuplehasher_a = TupleHash::v256(MARK_TEST_DATA.as_bytes());
         let a_x = bcs::to_bytes(&inscriber.a.x).unwrap();
         let a_y = bcs::to_bytes(&inscriber.a.y).unwrap();
         let a_addl: Vec<u8> = vec![];
-        tuplehasher_a.update(a_x.as_slice());
         tuplehasher_a.update(a_y.as_slice());
+        tuplehasher_a.update(a_x.as_slice());
         tuplehasher_a.update(a_addl.as_slice());
         let mut buffer_a: [u8; INSCRIBE_LENGTH] = [0u8; INSCRIBE_LENGTH];
         tuplehasher_a.finalize(&mut buffer_a);
 
         // Get the inscription of the `b` member
+        // (Note that `x` and `y` are out of order according to `inscribe_name`)
         let mut tuplehasher_b = TupleHash::v256(MARK_TEST_DATA.as_bytes());
         let b_x = bcs::to_bytes(&inscriber.b.x).unwrap();
         let b_y = bcs::to_bytes(&inscriber.b.y).unwrap();
         let b_addl: Vec<u8> = vec![];
-        tuplehasher_b.update(b_x.as_slice());
         tuplehasher_b.update(b_y.as_slice());
+        tuplehasher_b.update(b_x.as_slice());
         tuplehasher_b.update(b_addl.as_slice());
         let mut buffer_b: [u8; INSCRIBE_LENGTH] = [0u8; INSCRIBE_LENGTH];
         tuplehasher_b.finalize(&mut buffer_b);
