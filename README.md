@@ -60,11 +60,11 @@ makes room for implementation flexibility.
 
 Decree transcripts ensure that:
 
-    - Transcript formats are specified at a single point per stage, not across entire functions
-    - Critical transcript inputs aren't skipped
-    - Transcript inputs are not multiply-specified
-    - Changes to the order of inputs don't result in incompatibility problems
-    - Challenges are generated in a specified order
+  - Transcript formats are specified at a single point per stage, not across entire functions
+  - Critical transcript inputs aren't skipped
+  - Transcript inputs are not multiply-specified
+  - Changes to the order of inputs don't result in incompatibility problems
+  - Challenges are generated in a specified order
 
 
 ### Supported types
