@@ -10,5 +10,9 @@ proc-macro2 = "1.0.76"
 quote = "1.0.35"
 syn = "2.0.48"
 
+[dev-dependencies]
+num-bigint = "0.4.4"
+num-traits = "0.2.18"
+
 [lib]
 proc-macro = true
