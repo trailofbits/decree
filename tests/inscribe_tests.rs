@@ -121,20 +121,6 @@ mod tests {
               99a1e449e433c5947af5194471e84ce0\
               d34b30b761004c8efdad598771b37e13", 16).unwrap();
 
-        // For our purposes, we'll be cheating a bit: we need to compute `g^(-x) mod n`, but we
-        // don't have a multiplicative inverse routine, so we use a precomputed value, which is
-        // actually `phi(n) - x`. In practice, we might not know `p` and `q`, so we'd compute
-        // `g^-1 mod n` and then `(g^-1)^x mod n`.
-        let neg_x: BigUint = BigUint::parse_bytes(
-            b"c315c9185e270208be6f38a7dc1aff77\
-              bd363e3786bc4fc640f51e2463635e4c\
-              01d340ec6624f20b727ff00325e43681\
-              3ef152abbf77fa943abd029027657cc9\
-              6096543e9a9ca4d8dee4154d08f1b275\
-              000036dfa110362222f6a73ea9fc1c8a\
-              4e1239bc15f968a29d5f4578484d7356\
-              271934ade976ef025b9b2b84a5f07537", 16).unwrap();
-
         // n is our modulus
         let n = &p * &q;
         transcript.add_serial("N", &n).unwrap();
@@ -143,8 +129,11 @@ mod tests {
         let g = BigUint::from(2u32);
         transcript.add_serial("g", &g).unwrap();
 
+        // We need `g^(-1)` to compute `g^(-x)`. Since `g` is 2, we can compute this easily.
+        let g_inv = (&n + &one) / &g;
+
         // h is our target
-        let h = g.modpow(&neg_x, &n);
+        let h = g_inv.modpow(&x, &n);
         transcript.add_serial("h", &h).unwrap();
 
         // r is our secret randomizer; u is its corresponding public output
