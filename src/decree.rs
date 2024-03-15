@@ -68,7 +68,7 @@ pub type FSInput = Vec<u8>;
 ///     let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_buffer);
 ///
 ///     // Final proof value
-///     let z = (challenge_int * log) + randomizer;
+///     let z = (challenge_int * log) + randomizer_exp;
 /// #   Ok(())
 /// # }
 /// ```

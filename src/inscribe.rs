@@ -84,7 +84,7 @@ pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 /// # use decree::inscribe::InscribeBuffer;
 /// # use decree::decree::FSInput;
 /// # use decree::error::Error;
-//  # use decree::error::DecreeResult
+/// # use decree::error::DecreeResult;
 /// #[derive(Inscribe)]
 /// pub struct Point {
 ///     #[inscribe(serialize)]

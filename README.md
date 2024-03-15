@@ -101,7 +101,7 @@ discrete logarithm of `8675309` modulo a shared modulus of `0x1fffffffffffffff` 
     // Proof parameters
     let target = BigInt::from(8675309u32);
     let base = BigInt::from(43u32);
-    let log = BigInt::from_str("18777797083714995725967614997933308615").unwrap();
+    let log = BigInt::parse_bytes(b"18777797083714995725967614997933308615", 10).unwrap();
     let modulus = &BigInt::from(2u32).pow(127) - BigInt::from(1u32);
 
     // Random exponent
@@ -109,11 +109,14 @@ discrete logarithm of `8675309` modulo a shared modulus of `0x1fffffffffffffff` 
     let randomizer_exp = rng.gen_bigint(256) % (&modulus - BigInt::from(1u32));
     let randomizer = base.modpow(&randomizer_exp, &modulus);
 
-    // Add everything to the transcript-- note that order doesn't matter!
-    transcript.add_serial("modulus", &modulus);
-    transcript.add_serial("base", &base);
-    transcript.add_serial("target", &target);
+    // Add everything to the transcript-- note that order of addition doesn't matter!
     transcript.add_serial("u", &randomizer);
+    transcript.add_serial("target", &target);
+    transcript.add_serial("base", &base);
+    transcript.add_serial("modulus", &modulus);
+
+    let mut challenge_out: [u8; 32] = [0u8; 32];
+    transcript.get_challenge("c_challenge", &mut challenge_out);
 ```
 
 (Note: this code should not be _used_ for a variety of reasons; it is for illustrative purposes

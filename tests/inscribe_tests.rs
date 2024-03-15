@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use num_bigint::{BigInt, BigUint, RandBigInt, Sign};
     use bcs;
     use decree::error::Error;
     use decree::Inscribe;
@@ -41,7 +42,7 @@ mod tests {
     }
 
     #[test]
-    /// Test to make sure that 
+    /// Test to make sure that `derive(Inscribe)` macros are working
     fn test_derive_inscribe() {
         // First, build our structs
         let x: Point = Point { x: 8675309i32, y: 8675311i32 };
@@ -76,7 +77,7 @@ mod tests {
         let mut buffer_b: [u8; INSCRIBE_LENGTH] = [0u8; INSCRIBE_LENGTH];
         tuplehasher_b.finalize(&mut buffer_b);
 
-        // Put the `a` and `b` hashest together
+        // Put the `a` and `b` hashes together
         let mut tuplehasher_total = TupleHash::v256("InscribeTest".as_bytes());
         let total_addl: Vec<u8> = ADDL_TEST_DATA.as_bytes().to_vec();
         tuplehasher_total.update(&buffer_a);
@@ -89,7 +90,8 @@ mod tests {
     }
 
     #[test]
-    /// This is a Girault proof 
+    /// This is an example of how to use Decree to do a Girault proof. Note that this code is for
+    /// illustrative purposes, not for production use.
     fn test_girault() {
         use decree::decree::Decree;
         use num_bigint::{BigUint, RandBigInt};
@@ -180,5 +182,78 @@ mod tests {
         let check = (g_verify.modpow(&z_verify, &n_verify) * h_verify.modpow(&verifier_challenge_int, &n_verify)) % n_verify;
 
         assert_eq!(u_verify, check);
+    }
+
+    /// Schnorr proof as a struct
+    #[derive(Inscribe)]
+    struct SchnorrProof {
+        #[inscribe(serialize)]
+        base: BigInt,
+        #[inscribe(serialize)]
+        target: BigInt,
+        #[inscribe(serialize)]
+        modulus: BigInt,
+        #[inscribe(serialize)]
+        randomizer: BigInt,
+        #[inscribe(skip)]
+        z: BigInt,
+    }
+
+    fn schnorr_prove() -> SchnorrProof {
+        use decree::decree::Decree;
+        use num_traits::sign::Signed;
+        // Proof parameters
+        let modulus = BigInt::from(2u32).pow(127) - BigInt::from(1u32);
+        let target = BigInt::from(8675309u32);
+        let base = BigInt::from(43u32);
+        let log = BigInt::parse_bytes(b"18777797083714995725967614997933308615", 10).unwrap();
+        let mut rng = rand::thread_rng();
+        let randomizer_exp = rng.gen_bigint(128).abs();
+        let randomizer = base.modpow(&randomizer_exp, &modulus);
+
+        let mut proof = SchnorrProof {
+            base: base,
+            target: target,
+            modulus: modulus,
+            randomizer: randomizer,
+            z: BigInt::from(0u32),
+        };
+
+        let mut transcript = Decree::new(
+            "schnorr proof",
+            vec!["proof_data"].as_slice(),
+            vec!["z_bytes"].as_slice()).unwrap();
+        transcript.add("proof_data", &proof).unwrap();
+
+        let mut challenge_bytes: [u8; 32] = [0u8; 32];
+        transcript.get_challenge("z_bytes", &mut challenge_bytes).unwrap();
+        let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_bytes);
+        let z = (&challenge_int * &log) + &randomizer_exp;
+
+        proof.z = z;
+        proof
+    }
+
+    fn schnorr_verify(proof: &SchnorrProof) -> bool {
+        use decree::decree::Decree;
+        use num_traits::sign::Signed;
+        let mut transcript = Decree::new(
+            "schnorr proof",
+            vec!["proof_data"].as_slice(),
+            vec!["z_bytes"].as_slice()).unwrap();
+        transcript.add("proof_data", proof).unwrap();
+        let mut challenge_bytes: [u8; 32] = [0u8; 32];
+        transcript.get_challenge("z_bytes", &mut challenge_bytes).unwrap();
+        let challenge_int = BigInt::from_bytes_le(Sign::Plus, &challenge_bytes);
+
+        let lhs = proof.base.modpow(&proof.z, &proof.modulus);
+        let rhs = (&proof.randomizer * proof.target.modpow(&challenge_int, &proof.modulus)) % &proof.modulus;
+        lhs == rhs
+    }
+
+    #[test]
+    fn test_schnorr_inscribe() {
+        let proof = schnorr_prove();
+        assert!(schnorr_verify(&proof));
     }
 }
