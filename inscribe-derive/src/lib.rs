@@ -148,7 +148,7 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
             Handling::Serialize => quote!{
                 serial_out = match bcs::to_bytes(&self.#member_ident) {
                     Ok(bvec) => bvec,
-                    _ => { panic!("Couldn't serialize value"); },
+                    _ => { return Err(decree::error::Error::new_general("Could not serialize Value")); },
                 };
                 hasher.update(serial_out.as_slice());
             },

@@ -31,6 +31,11 @@ Member values and contextual information in `#[derive(Inscribe)]` structs are co
 TupleHash, which is derived from the SHA-3 hash function. This prevents issues with domain
 separation and canonicalization.
 
+Structs with the `Inscribe` trait also provide a name or "mark". By default, the mark is just the
+name of the name of the struct; developers can override this by defining the `get_mark` method.
+Since many cryptographic libraries include distinct structures with the same name (think of
+structs named `PublicKey` or `Proof`), it's a good idea to do so.
+
 ## `Decree` transcripts
 
 ### Overview
