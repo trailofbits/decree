@@ -12,7 +12,7 @@ parameters (or, in the case of curves with well-known parameters, such as `secp2
 `ed25519`, simply the name of the curve). For an integer in a finite field, the field order might
 be included.
 
-In more complex systems like Groth16 or Bulletproofs, it's possible that _multiple_ parameters
+In more complex systems like PLoNK or Bulletproofs, it's possible that _multiple_ parameters
 could be included as contextual information.
 
 The trait is derivable, allowing for recursive inclusion of contextual information: if a struct

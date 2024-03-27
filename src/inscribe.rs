@@ -57,6 +57,20 @@ pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 /// }
 /// ```
 ///
+/// Note that we can't specify two different handlings for the same struct member:
+///
+/// ```compile_fail
+/// # use decree::Inscribe;
+/// # use decree::inscribe::InscribeBuffer;
+/// #[derive(Inscribe)]
+/// pub struct Point {
+///     #[inscribe(serialize)]
+///     #[inscribe(skip)]
+///     x: i32,
+///     y: i32,
+/// }
+/// ```
+///
 /// # Tests
 ///
 /// ```
