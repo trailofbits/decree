@@ -175,7 +175,7 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
             use decree::decree::FSInput;
 
             let mut serial_out: Vec<u8> = Vec::new();
-            let mut hasher = TupleHash::v256(self.get_mark().as_bytes());
+            let mut hasher = TupleHash::v256(Self::MARK.as_bytes());
 
             // Add the struct members into the TupleHash
             #center
@@ -196,12 +196,10 @@ fn implement_default_mark(ast: &DeriveInput) -> TokenStream {
     let ident = &ast.ident;
     let ident_str = ident.to_string();
 
-    let get_mark = quote!{
-            fn get_mark(&self) -> &'static str {
-                return #ident_str;
-            }
+    let mark = quote!{
+            const MARK: &'static str = #ident_str;
         };
-    get_mark
+    mark
 }
 
 fn implement_get_addl(ast: &DeriveInput) -> TokenStream {
@@ -255,9 +253,7 @@ fn implement_get_mark(ast: &DeriveInput) -> TokenStream {
         if let Some(meta) = nested.iter().next() {
             match meta {
                 Meta::Path(path) => { mark_implementation = quote!{
-                    fn get_mark(&self) -> &'static str {
-                        self.#path()
-                    }
+                    const MARK: &'static str = #path;
                  }},
                 _ => { panic!("Invalid metadata for field attribute"); },
             }
