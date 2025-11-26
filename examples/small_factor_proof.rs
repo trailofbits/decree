@@ -13,80 +13,19 @@
 #![deny(warnings)]
 #![cfg_attr(not(test), allow(dead_code))]
 
+mod crypto_helpers;
+
 use decree::error::Error;
 use decree::Inscribe;
 use decree::decree::{Decree, FSInput};
+use crypto_helpers::{extended_gcd, generate_prime};
 use num_bigint::{BigInt, BigUint, RandBigInt, Sign};
 use num_traits::{One, Zero};
 use rand::rngs::OsRng;
 use rand::Rng;
 
-/// Security parameter for statistical distance
-const EPSILON: u32 = 128;
-
-/// Miller-Rabin primality test
-fn is_probably_prime(n: &BigUint, rounds: u32) -> bool {
-    if n < &BigUint::from(2u32) {
-        return false;
-    }
-    if n == &BigUint::from(2u32) || n == &BigUint::from(3u32) {
-        return true;
-    }
-    if !n.bit(0) {
-        return false;  // even number
-    }
-
-    // Write n-1 as 2^r · d
-    let n_minus_1 = n - BigUint::one();
-    let mut d = n_minus_1.clone();
-    let mut r = 0u32;
-    while !d.bit(0) {
-        d >>= 1;
-        r += 1;
-    }
-
-    let mut rng = OsRng;
-
-    'witness: for _ in 0..rounds {
-        let a = rng.gen_biguint_range(&BigUint::from(2u32), &(n - BigUint::from(2u32)));
-        let mut x = a.modpow(&d, n);
-
-        if x == BigUint::one() || x == n_minus_1 {
-            continue 'witness;
-        }
-
-        for _ in 0..(r - 1) {
-            x = x.modpow(&BigUint::from(2u32), n);
-            if x == n_minus_1 {
-                continue 'witness;
-            }
-        }
-
-        return false;
-    }
-
-    true
-}
-
-/// Generate a random prime of specified bit length
-fn generate_prime(bits: usize) -> BigUint {
-    let mut rng = OsRng;
-    loop {
-        // Generate random odd number of specified bit length
-        let mut candidate = rng.gen_biguint(bits as u64);
-
-        // Set high bit to ensure correct bit length
-        candidate.set_bit(bits as u64 - 1, true);
-
-        // Make it odd
-        candidate.set_bit(0, true);
-
-        // Test for primality
-        if is_probably_prime(&candidate, 20) {
-            return candidate;
-        }
-    }
-}
+/// Statistical hiding parameter for small-factor proof
+const SMALL_FACTOR_EPSILON: u32 = 524;
 
 /// Wrapper for BigInt with proper domain separation for Inscribe
 struct BigIntWrapper(BigInt);
@@ -199,19 +138,6 @@ fn modpow_signed(base: &BigUint, exp: &BigInt, modulus: &BigUint) -> BigUint {
     }
 }
 
-/// Extended GCD algorithm
-fn extended_gcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
-    if b.is_zero() {
-        return (a.clone(), BigInt::one(), BigInt::zero());
-    }
-
-    let (gcd, x1, y1) = extended_gcd(b, &(a % b));
-    let x = y1.clone();
-    let y = x1 - (a / b) * y1;
-
-    (gcd, x, y)
-}
-
 /// Sample a signed BigInt uniformly from [-bound, bound]
 fn sample_pm_range(bound: &BigUint) -> BigInt {
     let mut rng = OsRng;
@@ -264,7 +190,7 @@ fn prove(
     // Compute bounds for sampling
     let sqrt_n0 = isqrt_ceil(n0);
     let two_ell = BigUint::from(2u32).pow(ell);
-    let two_ell_eps = BigUint::from(2u32).pow(ell + EPSILON);
+    let two_ell_eps = BigUint::from(2u32).pow(ell + SMALL_FACTOR_EPSILON);
     let bound_alpha = &two_ell_eps * &sqrt_n0;  // ±2^(ℓ+ε) · √N₀
     let bound_mu = &two_ell * &params.n_tilde;  // ±2^ℓ · Ñ
     let bound_r = &two_ell_eps * n0 * &params.n_tilde;  // ±2^(ℓ+ε) · N₀ · Ñ
@@ -323,10 +249,11 @@ fn prove(
     transcript.add("commitment", &commitment).unwrap();
 
     // Get challenge e ← ±2^ℓ
-    let mut challenge_bytes = vec![0u8; (ell as usize).div_ceil(8)];
+    let mut challenge_bytes = vec![0u8; (ell as usize).div_ceil(8) + 1];
     transcript.get_challenge("challenge", &mut challenge_bytes).unwrap();
-    let e_magnitude = BigUint::from_bytes_le(&challenge_bytes) % BigUint::from(2u32).pow(ell);
-    let e = BigInt::from_biguint(Sign::Plus, e_magnitude);
+    let e_magnitude = BigUint::from_bytes_le(&challenge_bytes[..challenge_bytes.len()-1]) % BigUint::from(2u32).pow(ell);
+    let sign = if challenge_bytes[challenge_bytes.len()-1] & 1 == 0 { Sign::Plus } else { Sign::Minus };
+    let e = BigInt::from_biguint(sign, e_magnitude);
 
     // Compute responses
     let z1 = &alpha + (&e * BigInt::from_biguint(Sign::Plus, p.clone()));
@@ -355,7 +282,23 @@ fn verify(
     proof: &SmallFactorProof,
     n0: &BigUint,
     ell: u32,
-) -> bool {
+) -> Result<(), Error> {
+    // Check protocol preconditions
+    // Requirement 1: N₀ > 2^4ℓ
+    let four_ell = 4 * ell;
+    if n0.bits() as u32 <= four_ell {
+        return Err(Error::new_general("N₀ must be > 2^4ℓ"));
+    }
+
+    // Requirement 2: 2^(ℓ+ε) ≈ √N₀
+    // Check that |2^(ℓ+ε) - √N₀| is reasonable (within factor of 2)
+    let sqrt_n0 = isqrt_ceil(n0);
+    let sqrt_n0_bits = sqrt_n0.bits() as u32;
+    let ell_plus_epsilon = ell + SMALL_FACTOR_EPSILON;
+    if sqrt_n0_bits < ell_plus_epsilon.saturating_sub(1) || sqrt_n0_bits > ell_plus_epsilon + 1 {
+        return Err(Error::new_general("2^(ℓ+ε) must approximate √N₀"));
+    }
+
     // Recreate challenge from commitment
     let mut transcript = Decree::new(
         "small-factor-proof",
@@ -364,20 +307,21 @@ fn verify(
     ).unwrap();
     transcript.add("commitment", &proof.commitment).unwrap();
 
-    let mut challenge_bytes = vec![0u8; (ell as usize).div_ceil(8)];
+    let mut challenge_bytes = vec![0u8; (ell as usize).div_ceil(8) + 1];
     transcript.get_challenge("challenge", &mut challenge_bytes).unwrap();
-    let e_magnitude = BigUint::from_bytes_le(&challenge_bytes) % BigUint::from(2u32).pow(ell);
-    let e = BigInt::from_biguint(Sign::Plus, e_magnitude);
+    let e_magnitude = BigUint::from_bytes_le(&challenge_bytes[..challenge_bytes.len()-1]) % BigUint::from(2u32).pow(ell);
+    let sign = if challenge_bytes[challenge_bytes.len()-1] & 1 == 0 { Sign::Plus } else { Sign::Minus };
+    let e = BigInt::from_biguint(sign, e_magnitude);
 
     // Range check: z₁, z₂ ∈ ±√N₀ · 2^(ℓ+ε)
     let sqrt_n0 = isqrt_ceil(n0);
-    let two_ell_eps = BigUint::from(2u32).pow(ell + EPSILON);
+    let two_ell_eps = BigUint::from(2u32).pow(ell + SMALL_FACTOR_EPSILON);
     let range_bound = &sqrt_n0 * &two_ell_eps;
 
     if proof.response.z1.0.magnitude() > &range_bound
         || proof.response.z2.0.magnitude() > &range_bound
     {
-        return false;
+        return Err(Error::new_general("Range check failed"));
     }
 
     // Equality checks
@@ -394,7 +338,7 @@ fn verify(
         % &params.n_tilde;
 
     if lhs1 != rhs1 {
-        return false;
+        return Err(Error::new_general("Equality check 1 failed"));
     }
 
     // Check 2: s^z₂ · t^w₂ = B · Q^e mod Ñ
@@ -407,7 +351,7 @@ fn verify(
         % &params.n_tilde;
 
     if lhs2 != rhs2 {
-        return false;
+        return Err(Error::new_general("Equality check 2 failed"));
     }
 
     // Check 3: Q^z₁ · t^v = T · R^e mod Ñ
@@ -419,10 +363,10 @@ fn verify(
         % &params.n_tilde;
 
     if lhs3 != rhs3 {
-        return false;
+        return Err(Error::new_general("Equality check 3 failed"));
     }
 
-    true
+    Ok(())
 }
 
 fn main() {
@@ -440,8 +384,9 @@ mod tests {
         let params = generate_pedersen_parameters(2048);
 
         // Generate RSA modulus with proper-sized factors
-        // Use ℓ = 1000 to ensure 1024-bit primes are above 2^ℓ
-        let ell = 1000;
+        // For 2048-bit N₀: need N₀ > 2^4ℓ and 2^(ℓ+524) ≈ 2^1024
+        // So ℓ ≈ 500
+        let ell = 500;
         let (n0, p, q) = generate_rsa_modulus(2048);
 
         // Verify p and q are above the threshold
@@ -451,14 +396,15 @@ mod tests {
 
         // Generate and verify proof
         let proof = prove(&params, &n0, &p, &q, ell);
-        assert!(verify(&params, &proof, &n0, ell));
+        assert!(verify(&params, &proof, &n0, ell).is_ok());
     }
 
     #[test]
     fn test_proof_with_different_sizes() {
         // Test with 1536-bit modulus
         let params = generate_pedersen_parameters(1536);
-        let ell = 750;  // Below 768 to ensure 768-bit primes exceed threshold
+        // For 1536-bit N₀: √N₀ ≈ 2^768, so ℓ + 524 ≈ 768, so ℓ ≈ 244
+        let ell = 244;
         let (n0, p, q) = generate_rsa_modulus(1536);
 
         let threshold = BigUint::from(2u32).pow(ell);
@@ -466,20 +412,20 @@ mod tests {
         assert!(q > threshold);
 
         let proof = prove(&params, &n0, &p, &q, ell);
-        assert!(verify(&params, &proof, &n0, ell));
+        assert!(verify(&params, &proof, &n0, ell).is_ok());
     }
 
     #[test]
     fn test_multiple_proofs() {
         // Generate parameters once
         let params = generate_pedersen_parameters(2048);
-        let ell = 1000;
+        let ell = 500;
 
         // Generate and verify multiple proofs
         for _ in 0..3 {
             let (n0, p, q) = generate_rsa_modulus(2048);
             let proof = prove(&params, &n0, &p, &q, ell);
-            assert!(verify(&params, &proof, &n0, ell));
+            assert!(verify(&params, &proof, &n0, ell).is_ok());
         }
     }
 
@@ -487,19 +433,19 @@ mod tests {
     fn test_wrong_modulus() {
         // Generate proof for one modulus
         let params = generate_pedersen_parameters(2048);
-        let ell = 1000;
+        let ell = 500;
         let (n0, p, q) = generate_rsa_modulus(2048);
         let proof = prove(&params, &n0, &p, &q, ell);
 
         // Try to verify with different modulus
         let (n0_wrong, _, _) = generate_rsa_modulus(2048);
-        assert!(!verify(&params, &proof, &n0_wrong, ell));
+        assert!(verify(&params, &proof, &n0_wrong, ell).is_err());
     }
 
     #[test]
     fn test_modified_commitment() {
         let params = generate_pedersen_parameters(2048);
-        let ell = 1000;
+        let ell = 500;
         let (n0, p, q) = generate_rsa_modulus(2048);
         let mut proof = prove(&params, &n0, &p, &q, ell);
 
@@ -507,13 +453,13 @@ mod tests {
         proof.commitment.a_commit.0 = (&proof.commitment.a_commit.0 + BigUint::one()) % &params.n_tilde;
 
         // Verification should fail
-        assert!(!verify(&params, &proof, &n0, ell));
+        assert!(verify(&params, &proof, &n0, ell).is_err());
     }
 
     #[test]
     fn test_modified_response() {
         let params = generate_pedersen_parameters(2048);
-        let ell = 1000;
+        let ell = 500;
         let (n0, p, q) = generate_rsa_modulus(2048);
         let mut proof = prove(&params, &n0, &p, &q, ell);
 
@@ -521,6 +467,32 @@ mod tests {
         proof.response.z1.0 = &proof.response.z1.0 + BigInt::one();
 
         // Verification should fail
-        assert!(!verify(&params, &proof, &n0, ell));
+        assert!(verify(&params, &proof, &n0, ell).is_err());
+    }
+
+    #[test]
+    fn test_invalid_ell_too_large() {
+        let params = generate_pedersen_parameters(2048);
+        let (n0, p, q) = generate_rsa_modulus(2048);
+
+        // Use ℓ that violates N₀ > 2^4ℓ (2048 ≤ 4*512 = 2048)
+        let ell = 512;
+        let proof = prove(&params, &n0, &p, &q, ell);
+
+        // Verification should fail parameter check
+        assert!(verify(&params, &proof, &n0, ell).is_err());
+    }
+
+    #[test]
+    fn test_invalid_ell_wrong_approximation() {
+        let params = generate_pedersen_parameters(2048);
+        let (n0, p, q) = generate_rsa_modulus(2048);
+
+        // Use ℓ that violates 2^(ℓ+ε) ≈ √N₀ approximation
+        let ell = 300;  // 2^(300+524) = 2^824, but √N₀ ≈ 2^1024
+        let proof = prove(&params, &n0, &p, &q, ell);
+
+        // Verification should fail approximation check
+        assert!(verify(&params, &proof, &n0, ell).is_err());
     }
 }
