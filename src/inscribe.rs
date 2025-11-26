@@ -8,14 +8,14 @@ pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 /// contextual data into Fiat-Shamir transcripts. There are two main methods that the trait
 /// requires:
 ///
-/// `fn get_mark(&self) -> &'static str`
+/// `const MARK: &'static str`
 ///
 /// and
 ///
 /// `fn get_inscription(&self) -> FSInput`
 ///
 /// For derived structs, the `get_inscription` method will do the following:
-///     - Initialize a TupleHash with the results of `get_mark`
+///     - Initialize a TupleHash with the contents of `MARK`
 ///     - For each member of the struct, do one of three things:
 ///         + For `Inscribe` implementers, call `get_inscription` and add the results to the
 ///             TupleHash
@@ -124,7 +124,7 @@ pub type InscribeBuffer = [u8; INSCRIBE_LENGTH];
 /// ```
 ///
 pub trait Inscribe {
-    fn get_mark(&self) -> &'static str;
+    const MARK: &'static str;
     fn get_inscription(&self) -> DecreeResult<FSInput>;
     fn get_additional(&self) -> DecreeResult<FSInput> {
         let x: Vec<u8> = Vec::new();

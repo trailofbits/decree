@@ -12,7 +12,7 @@ mod tests {
     const MARK_TEST_DATA: &str = "Atypical mark!";
 
     #[derive(Inscribe)]
-    #[inscribe_mark(atypical_mark)]
+    #[inscribe_mark(MARK_TEST_DATA)]
     struct Point {
         #[inscribe(serialize)]
         #[inscribe_name(input_2)]
@@ -20,12 +20,6 @@ mod tests {
         #[inscribe(serialize)]
         #[inscribe_name(input_1)]
         y: i32,
-    }
-
-    impl Point {
-        fn atypical_mark(&self) -> &'static str {
-            MARK_TEST_DATA
-        }
     }
 
     #[derive(Inscribe)]
