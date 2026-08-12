@@ -17,3 +17,4 @@ inscribe-derive = { path = "inscribe-derive" }
 num-bigint = { version="0.4.4", features = ["rand", "serde"] }
 num-traits = { version="0.2.15" }
 rand = "0.8.5"
+curve25519-dalek = { version = "4", features = ["serde", "rand_core"] }
