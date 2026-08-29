@@ -1,3 +1,6 @@
+#![deny(warnings)]
+#![deny(clippy::pedantic)]
+
 use proc_macro2::TokenStream;
 use syn::{Attribute, AttrStyle, Data, DataStruct, DeriveInput, Field, Fields, Ident, Meta, Token};
 use syn::punctuated::Punctuated;
@@ -28,20 +31,14 @@ struct MemberInfo {
 
 fn parse_contained_ident(attr: &Attribute) -> Option<Ident> {
     // Get the nested attribute data
-    let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
-        Ok(parse_result) => parse_result,
-        Err(_) => { return None; },
-    };
+    let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else { return None; };
 
     // This was originally a for loop, but clippy noted that it never actually loops, so it
     // has been replaced with an if-let construction. This may be something to watch if the
     // metadata API changes.
-    if let Some(meta) = nested.iter().next() {
-        match meta {
-            Meta::Path(path) => { return Some(path.get_ident().unwrap().clone()); },
-            _ => { },
-        }
-    };
+    if let Some(Meta::Path(path)) = nested.iter().next() {
+        return Some(path.get_ident().unwrap().clone());
+    }
 
     None
 }
@@ -51,10 +48,7 @@ fn get_member_info(field: &Field) -> MemberInfo {
     let mut member_handling = Handling::Recurse;
     let mut found_handling: bool = false;
     let mut found_name: bool = false;
-    let mut sort_name = match field.ident.clone() {
-        Some(k) => k,
-        None => { panic!("Couldn't get field name"); }
-    };
+    let Some(mut sort_name) = field.ident.clone() else { panic!("Couldn't get field name"); };
 
     // Run over all the attributes
     for attr in field.clone().attrs {
@@ -68,40 +62,31 @@ fn get_member_info(field: &Field) -> MemberInfo {
         }
 
         // Parse out whatever is inside the attribute
-        let inside = match parse_contained_ident(&attr) {
-            Some(ident) => ident,
-            None => { panic!("Failed to parse member attribute for Inscribe trait"); }
-        };
+        let Some(inside) = parse_contained_ident(&attr) else { panic!("Failed to parse member attribute for Inscribe trait"); };
 
         // Get handling specifications
         if attr.path().is_ident(INSCRIBE_HANDLING_IDENT) {
             // Don't process the same handling twice
-            if found_handling {
-                panic!("Inscribe handling attribute defined more than once");
-            }
+            assert!(!found_handling, "Inscribe handling attribute defined more than once");
 
-            if inside.to_string() == String::from(SKIP_IDENT) {
+            if inside == SKIP_IDENT {
                 member_handling = Handling::Skip;
-            } else if inside.to_string() == String::from(SERIALIZE_IDENT) {
+            } else if inside == SERIALIZE_IDENT {
                 member_handling = Handling::Serialize;
-            } else if inside.to_string() == String::from(RECURSE_IDENT) {
+            } else if inside == RECURSE_IDENT {
                 member_handling = Handling::Recurse;
             } else {
                 panic!("Invalid handling specification");
             }
             found_handling = true;
-            continue;
         }
 
         // Get sorting name
         if attr.path().is_ident(INSCRIBE_NAME_IDENT) {
             // Don't process the name twice
-            if found_name {
-                panic!("Inscribe name attribute defined more than once");
-            }
+            assert!(!found_name, "Inscribe name attribute defined more than once");
             sort_name = inside.clone();
             found_name = true;
-            continue;
         }
     }
 
@@ -113,10 +98,7 @@ fn get_member_info(field: &Field) -> MemberInfo {
 }
 
 fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
-    let members = match dstruct.fields.clone() {
-        Fields::Named(a) => a,
-        _ => { panic!("Invalid struct type"); }
-    };
+    let Fields::Named(members) = dstruct.fields.clone() else { panic!("Invalid struct type"); };
 
     // Build hash table to match each of the struct member names to an associated MemberInfo
     // struct
@@ -124,8 +106,8 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
     let mut member_vec: Vec<String> = Vec::new();
 
 
-    for field in members.named.iter() {
-        let member_info = get_member_info(&field);
+    for field in &members.named {
+        let member_info = get_member_info(field);
         let sort_name_str = member_info.sort_ident.to_string();
 
         member_table.insert(sort_name_str.clone(), member_info);
@@ -136,7 +118,7 @@ fn implement_get_inscription(dstruct: &DataStruct) -> TokenStream {
     let mut center = quote!{};
     member_vec.sort();
 
-    for sort_name in member_vec.iter() {
+    for sort_name in &member_vec {
         let current_member = member_table.get(sort_name).unwrap(); // Guaranteed to work
         let member_ident = current_member.name_ident.clone();
 
@@ -211,12 +193,7 @@ fn implement_get_addl(ast: &DeriveInput) -> TokenStream {
         // We only look for "inscribe" attributes
         if !attr.path().is_ident(INSCRIBE_ADDL_IDENT) { continue; }
 
-        let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
-            Ok(parse_result) => {
-                parse_result
-            },
-            Err(_) => { panic!("Failed to parse inscribe_addl field attribute"); }
-        };
+        let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else { panic!("Failed to parse inscribe_addl field attribute"); };
 
         if let Some(meta) = nested.iter().next() {
             match meta {
@@ -243,12 +220,7 @@ fn implement_get_mark(ast: &DeriveInput) -> TokenStream {
         // We only look for "inscribe" attributes
         if !attr.path().is_ident(INSCRIBE_MARK_IDENT) { continue; }
 
-        let nested = match attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
-            Ok(parse_result) => {
-                parse_result
-            },
-            Err(_) => { panic!("Failed to parse inscribe_mark field attribute"); }
-        };
+        let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else { panic!("Failed to parse inscribe_mark field attribute"); };
 
         if let Some(meta) = nested.iter().next() {
             match meta {
@@ -290,19 +262,15 @@ fn implement_inscribe_trait(ast: DeriveInput, dstruct: &DataStruct) -> TokenStre
 
 
 #[proc_macro_derive(Inscribe, attributes(inscribe, inscribe_addl, inscribe_mark, inscribe_name))]
+#[allow(clippy::missing_panics_doc)]
 pub fn inscribe_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast: DeriveInput = syn::parse(item.clone()).unwrap();
 
     // We don't support for derive for anything but structs
-    let dstruct = match ast.clone().data {
-        Data::Struct(d) => d,
-        _ => { panic!("Invalid type for derive(Inscribe)")},
-    };
+    let Data::Struct(dstruct) = ast.clone().data else { panic!("Invalid type for derive(Inscribe)")};
 
     // We don't support unnamed structs
-    if !matches!(dstruct.fields, Fields::Named(_)) {
-        panic!("Unnamed structs not supported for derive(Inscribe)");
-    }
+    assert!(matches!(dstruct.fields, Fields::Named(_)), "Unnamed structs not supported for derive(Inscribe)");
 
     implement_inscribe_trait(ast, &dstruct).into()
 }
